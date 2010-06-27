@@ -474,7 +474,7 @@ void MainWindow::on_ActionSave__triggered ()
 		package.appendChild (screens);
 	}
 
-	QString longDescr = Ui_.LongDescription_->toHtml ();
+	QString longDescr = Ui_.LongDescription_->toPlainText ();
 	if (!longDescr.isEmpty ())
 	{
 		QDomElement longNode = doc.createElement ("long");
