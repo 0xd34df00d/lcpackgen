@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QLocale>
 #include <QInputDialog>
+#include <QDomDocument>
 #include <QtDebug>
 
 MainWindow::MainWindow ()
@@ -35,6 +36,10 @@ MainWindow::MainWindow ()
 			this,
 			SLOT (checkValid ()));
 	connect (Ui_.Description_,
+			SIGNAL (textChanged (const QString&)),
+			this,
+			SLOT (checkValid ()));
+	connect (Ui_.Tags_,
 			SIGNAL (textChanged (const QString&)),
 			this,
 			SLOT (checkValid ()));
@@ -99,6 +104,9 @@ bool MainWindow::checkValid ()
 	if (Ui_.Description_->text ().isEmpty ())
 		reasons << tr ("<em>Description</em> is empty.");
 
+	if (Ui_.Tags_->text ().isEmpty ())
+		reasons << tr ("<em>Tags</em> are empty.");
+
 	if (Ui_.MaintName_->text ().isEmpty ())
 		reasons << tr ("<em>Maintainer name</em> is empty.");
 
@@ -134,6 +142,8 @@ bool MainWindow::checkValid ()
 void MainWindow::on_ActionNew__triggered ()
 {
 	Clear ();
+
+	CurrentFileName_ = QString ();
 }
 
 enum Type
@@ -141,7 +151,7 @@ enum Type
 	SetTextable,
 	StringListJoinable,
 	StringListModel,
-	StringListListModel
+	StringListList
 };
 
 template<Type ET>
@@ -163,7 +173,7 @@ struct EvaluateQuery<SetTextable>
 			return false;
 		}
 
-		setTextable->setText (out);
+		setTextable->setText (out.trimmed ());
 		return true;
 	}
 };
@@ -183,6 +193,9 @@ struct EvaluateQuery<StringListJoinable>
 					<< "query evaluation error";
 			return false;
 		}
+
+		for (int i = 0; i < out.size (); ++i)
+			out [i] = out.at (i).trimmed ();
 
 		joinable->setPlainText (out.join ("\n"));
 		return true;
@@ -205,60 +218,43 @@ struct EvaluateQuery<StringListModel>
 		}
 
 		Q_FOREACH (const QString& str, out)
-			model->appendRow (new QStandardItem (str));
+			model->appendRow (new QStandardItem (str.trimmed ()));
 		return true;
 	}
 };
 
 template<>
-struct EvaluateQuery<StringListListModel>
+struct EvaluateQuery<StringListList>
 {
 	bool operator() (QXmlQuery& query,
 			const QString& queryString,
-			const QString& subQueryString,
-			QStandardItemModel *model) const
+			QList<QStringList>& list) const
 	{
 		query.setQuery (queryString);
-		QXmlResultItems resultItems;
-		query.evaluateTo (&resultItems);
-		if (resultItems.hasError ())
+		QStringList out;
+		if (!query.evaluateTo (&out))
 		{
 			qWarning () << Q_FUNC_INFO
 					<< "outer query evaluation error";
 			return false;
 		}
 
-		QList<QStringList> listOfLists;
-
-		QXmlItem subItem = resultItems.next ();
-		while (!subItem.isNull ())
+		if (list.isEmpty ())
+			Q_FOREACH (const QString& str, out)
+				list.append (QStringList (str.trimmed ()));
+		else
 		{
-			QXmlQuery subQuery;
-			subQuery.setFocus (subItem);
-			subQuery.setQuery (subQueryString);
-
-			QString out;
-			if (!subQuery.evaluateTo (&out))
+			if (out.size () != list.size ())
 			{
 				qWarning () << Q_FUNC_INFO
-						<< "subquery evaluation error";
+						<< "size mismatch, out vs list:"
+						<< out
+						<< list;
 				return false;
 			}
-
-			qDebug () << out;
-			//listOfLists.append (out);
-
-			subItem = resultItems.next ();
-		}
-
-		qDebug () << listOfLists;
-
-		Q_FOREACH (const QStringList& row, listOfLists)
-		{
-			QList<QStandardItem*> rowItems;
-			Q_FOREACH (const QString& item, row)
-				rowItems << new QStandardItem (item);
-			model->appendRow (rowItems);
+			for (int i = 0, size = out.size ();
+					i < size; ++i)
+				list [i] << out.at (i).trimmed ();
 		}
 
 		return true;
@@ -277,6 +273,8 @@ void MainWindow::on_ActionLoad__triggered ()
 		return;
 
 	Clear ();
+
+	CurrentFileName_ = fileName;
 
 	Settings_.setValue ("LastLoadDir",
 			QFileInfo (fileName).absolutePath ());
@@ -336,6 +334,15 @@ void MainWindow::on_ActionLoad__triggered ()
 		else if (Ui_.Type_->currentText () == "translation")
 			Ui_.Language_->addItem (out);
 
+		QStringList tags;
+
+		query.setQuery ("/package/tags/tag/string(text())");
+		if (!query.evaluateTo (&tags))
+			throw std::runtime_error (tr ("Could not get tags.")
+					.toUtf8 ().constData ());
+
+		Ui_.Tags_->setText (tags.join ("; "));
+
 		EvaluateQuery<SetTextable> () (query, "/package/name/text()", Ui_.Name_);
 		EvaluateQuery<SetTextable> () (query, "/package/description/text()", Ui_.Description_);
 		EvaluateQuery<SetTextable> () (query, "/package/long/text()", Ui_.LongDescription_);
@@ -347,8 +354,18 @@ void MainWindow::on_ActionLoad__triggered ()
 		EvaluateQuery<StringListJoinable> () (query, "/package/thumbnails/thumbnail/normalize-space(string(@url))", Ui_.Thumbnails_);
 		EvaluateQuery<StringListJoinable> () (query, "/package/screenshots/screenshot/normalize-space(string(@url))", Ui_.Screenshots_);
 
-//		EvaluateQuery<StringListListModel> () (query, "/package/depends/depend",
-//				"(name/text()|version/text())", DepsModel_);
+		QList<QStringList> rows;
+		EvaluateQuery<StringListList> () (query, "/package/depends/depend/string(@thisVersion)", rows);
+		EvaluateQuery<StringListList> () (query, "/package/depends/depend/string(@type)", rows);
+		EvaluateQuery<StringListList> () (query, "/package/depends/depend/string(@name)", rows);
+		EvaluateQuery<StringListList> () (query, "/package/depends/depend/string(@version)", rows);
+		Q_FOREACH (const QStringList& row, rows)
+		{
+			QList<QStandardItem*> items;
+			Q_FOREACH (const QString& item, row)
+				items << new QStandardItem (item);
+			DepsModel_->appendRow (items);
+		}
 	}
 	catch (const std::exception& e)
 	{
@@ -370,6 +387,128 @@ void MainWindow::on_ActionSave__triggered ()
 					tr ("Are you sure you want to save an <strong>invalid</strong> document?"),
 					QMessageBox::Yes | QMessageBox::No) == QMessageBox::No)
 		return;
+
+	if (CurrentFileName_.isEmpty ())
+	{
+		QString prevDir = Settings_.value ("LastLoadDir",
+				QDir::homePath ()).toString ();
+		CurrentFileName_ = QFileDialog::getSaveFileName (this,
+				tr ("Select file name"),
+				prevDir,
+				tr ("XML files (*.xml);;All files (*.*)"));
+		if (CurrentFileName_.isEmpty ())
+			return;
+	}
+
+	QFile outFile (CurrentFileName_);
+	if (!outFile.open (QIODevice::WriteOnly))
+	{
+		QMessageBox::warning (this,
+				tr ("Critical error"),
+				tr ("Could not open file %1 for writing.")
+					.arg (CurrentFileName_));
+		CurrentFileName_ = QString ();
+	}
+
+	QDomDocument doc;
+
+	QDomElement package = doc.createElement ("package");
+	package.setAttribute ("type", Ui_.Type_->currentText ());
+	if (!Ui_.Language_->currentText ().isEmpty ())
+		package.setAttribute ("language", Ui_.Language_->currentText ());
+	doc.appendChild (package);
+
+	QDomElement name = doc.createElement ("name");
+	name.appendChild (doc.createTextNode (Ui_.Name_->text ()));
+	package.appendChild (name);
+
+	QDomElement descr = doc.createElement ("descr");
+	descr.appendChild (doc.createTextNode (Ui_.Description_->text ()));
+	package.appendChild (descr);
+
+	QDomElement tags = doc.createElement ("tags");
+	package.appendChild (tags);
+	Q_FOREACH (const QString& tag, Ui_.Tags_->text ().split ("; "))
+	{
+		QDomElement tagNode = doc.createElement ("tag");
+		tagNode.appendChild (doc.createTextNode (tag));
+		tags.appendChild (tagNode);
+	}
+
+	QDomElement versions = doc.createElement ("versions");
+	package.appendChild (versions);
+	for (int i = 0, size = VersModel_->rowCount ();
+			i < size; ++i)
+	{
+		QDomElement verNode = doc.createElement ("version");
+		QString version = VersModel_->item (i)->text ();
+		verNode.appendChild (doc.createTextNode (version));
+		versions.appendChild (verNode);
+	}
+
+	QString rawThumbs = Ui_.Thumbnails_->toPlainText ();
+	if (!rawThumbs.isEmpty ())
+	{
+		QDomElement thumbnails = doc.createElement ("thumbnails");
+		QStringList splitted = rawThumbs.split ("\n", QString::SkipEmptyParts);
+		Q_FOREACH (const QString& thumbUrl, splitted)
+		{
+			QDomElement thumb = doc.createElement ("thumbnail");
+			thumb.setAttribute ("url", thumbUrl);
+			thumbnails.appendChild (thumb);
+		}
+		package.appendChild (thumbnails);
+	}
+
+	QString rawScreens = Ui_.Screenshots_->toPlainText ();
+	if (!rawScreens.isEmpty ())
+	{
+		QDomElement screens = doc.createElement ("screenshots");
+		QStringList splitted = rawScreens.split ('\n', QString::SkipEmptyParts);
+		Q_FOREACH (const QString& screenUrl, splitted)
+		{
+			QDomElement screen = doc.createElement ("screenshot");
+			screen.setAttribute ("url", screenUrl);
+			screens.appendChild (screen);
+		}
+		package.appendChild (screens);
+	}
+
+	QString longDescr = Ui_.LongDescription_->toHtml ();
+	if (!longDescr.isEmpty ())
+	{
+		QDomElement longNode = doc.createElement ("long");
+		longNode.appendChild (doc.createTextNode (longDescr));
+		package.appendChild (longNode);
+	}
+
+	QDomElement maintainer = doc.createElement ("maintainer");
+	QDomElement mname = doc.createElement ("name");
+	mname.appendChild (doc.createTextNode (Ui_.MaintName_->text ()));
+	maintainer.appendChild (mname);
+	QDomElement memail = doc.createElement ("email");
+	memail.appendChild (doc.createTextNode (Ui_.MaintEmail_->text ()));
+	maintainer.appendChild (memail);
+	package.appendChild (maintainer);
+
+	QDomElement depends = doc.createElement ("depends");
+	for (int i = 0, size = DepsModel_->rowCount ();
+			i < size; ++i)
+	{
+		QDomElement depend = doc.createElement ("depend");
+		depend.setAttribute ("type",
+				DepsModel_->item (i, DCType)->text ());
+		depend.setAttribute ("thisVersion",
+				DepsModel_->item (i, DCThisVersion)->text ());
+		depend.setAttribute ("name",
+				DepsModel_->item (i, DCName)->text ());
+		depend.setAttribute ("version",
+				DepsModel_->item (i, DCVersion)->text ());
+		depends.appendChild (depend);
+	}
+	package.appendChild (depends);
+
+	outFile.write (doc.toByteArray ());
 }
 
 void MainWindow::on_AddVer__released ()
@@ -422,11 +561,10 @@ void MainWindow::on_ModifyVer__released ()
 	for (int i = 0, size = DepsModel_->rowCount ();
 			i < size; ++i)
 	{
-		QStandardItem *depItem = DepsModel_->item (i);
+		QStandardItem *depItem = DepsModel_->item (i, DCThisVersion);
 		if (depItem->text () == item->text ())
 			depItem->setText (ver);
 	}
-
 
 	item->setText (ver);
 }
@@ -440,7 +578,120 @@ void MainWindow::on_RemoveVer__released ()
 	if (!current.isValid ())
 		return;
 
+	QString ver = VersModel_->itemFromIndex (current)->text ();
+	QList<QStandardItem*> relatedItems = VersModel_->findItems (ver);
+	if (relatedItems.size ())
+	{
+		QMessageBox::warning (this,
+				tr ("Error"),
+				tr ("There are %1 dependencies which mention this version "
+					"(%2) you are going to delete. Please modify or remove"
+					" those dependencies first.")
+					.arg (relatedItems.size ())
+					.arg (ver));
+		return;
+	}
+
 	qDeleteAll (VersModel_->takeRow (current.row ()));
+}
+
+void MainWindow::on_AddDep__released ()
+{
+	QStringList thisVersions;
+	for (int i = 0, size = VersModel_->rowCount ();
+			i < size; ++i)
+		thisVersions << VersModel_->item (i)->text ();
+
+	if (!thisVersions.size ())
+	{
+		QMessageBox::critical (this,
+				tr ("Error"),
+				tr ("First define at least one package version."));
+		return;
+	}
+
+	QString thisVer = QInputDialog::getItem (this,
+			tr ("Select version"),
+			tr ("Select version of <em>this</em> package for which the "
+				"dependency you are going to create applies:"),
+			thisVersions,
+			0,
+			false);
+	if (thisVer.isEmpty ())
+		return;
+
+	QString type = QInputDialog::getItem (this,
+			tr ("Select dependency type"),
+			tr ("Choose whether this dependency is a requirement or a provision one."),
+			QStringList ("provide") << "require",
+			0,
+			false);
+	if (type.isEmpty ())
+		return;
+
+	QString name;
+	do
+	{
+		if (!name.isEmpty ())
+			QMessageBox::critical (this,
+					tr ("Error"),
+					tr ("Dependency name should begin with "
+						"<code>interface://</code> when requiring or "
+						"providing an interface or "
+						"<code>plugin://</code>when requiring a plugin"));
+
+		name = QInputDialog::getText (this,
+				tr ("Enter dependency name"),
+				tr ("Enter the name of the interface this plugin depends"
+					" on or provides or name of other plugin this one depends on:"));
+
+		if (name.isEmpty ())
+			return;
+	} while (!(name.startsWith ("interface://") || name.startsWith ("plugin://")));
+
+	QString depVersion = QInputDialog::getText (this,
+			tr ("Enter dependency version"),
+			tr ("Enter the dependency version for the <em>%1</em> dependency.")
+				.arg (name));
+	if (depVersion.isEmpty ())
+		return;
+
+
+	QList<QStandardItem*> items;
+	items << new QStandardItem (thisVer);
+	items << new QStandardItem (type);
+	items << new QStandardItem (name);
+	items << new QStandardItem (depVersion);
+	DepsModel_->appendRow (items);
+}
+
+void MainWindow::on_ModifyDep__released ()
+{
+	QModelIndex current = Ui_.DepsTree_->selectionModel ()->currentIndex ();
+	if (!current.isValid ())
+		return;
+
+	QStandardItem *item = DepsModel_->itemFromIndex (current);
+	QString ver = QInputDialog::getText (this,
+			tr ("Enter new data"),
+			tr ("Enter new data for this item (%1):")
+				.arg (item->text ()),
+			QLineEdit::Normal,
+			item->text ());
+	if (ver.isEmpty () ||
+			ver == item->text ())
+		return;
+
+	item->setText (ver);
+}
+
+void MainWindow::on_RemoveDep__released ()
+{
+	QModelIndex current = Ui_.DepsTree_->selectionModel ()->currentIndex ();
+	if (!current.isValid ())
+		return;
+
+	qDeleteAll (DepsModel_->takeRow (current.row ()));
 }
 
 void MainWindow::on_Type__currentIndexChanged (const QString& text)

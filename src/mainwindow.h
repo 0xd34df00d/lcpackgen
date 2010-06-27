@@ -16,6 +16,14 @@ class MainWindow : public QMainWindow
 	QStandardItemModel *DepsModel_;
 	QSettings Settings_;
 	bool EnableCheckValid_;
+	enum DepsColumns
+	{
+		DCThisVersion,
+		DCType,
+		DCName,
+		DCVersion
+	};
+	QString CurrentFileName_;
 public:
 	MainWindow ();
 private:
@@ -30,6 +38,9 @@ private slots:
 	void on_AddVer__released ();
 	void on_ModifyVer__released ();
 	void on_RemoveVer__released ();
+	void on_AddDep__released ();
+	void on_ModifyDep__released ();
+	void on_RemoveDep__released ();
 
 	void on_Type__currentIndexChanged (const QString&);
 };
