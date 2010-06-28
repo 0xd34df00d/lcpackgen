@@ -422,7 +422,7 @@ void MainWindow::on_ActionSave__triggered ()
 	name.appendChild (doc.createTextNode (Ui_.Name_->text ()));
 	package.appendChild (name);
 
-	QDomElement descr = doc.createElement ("descr");
+	QDomElement descr = doc.createElement ("description");
 	descr.appendChild (doc.createTextNode (Ui_.Description_->text ()));
 	package.appendChild (descr);
 
