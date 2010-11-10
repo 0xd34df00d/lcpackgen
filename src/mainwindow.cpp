@@ -351,8 +351,8 @@ void MainWindow::on_ActionLoad__triggered ()
 
 		EvaluateQuery<StringListModel> () (query, "/package/versions/version/normalize-space(string(text()))", VersModel_);
 
-		EvaluateQuery<StringListJoinable> () (query, "/package/thumbnails/thumbnail/normalize-space(string(@url))", Ui_.Thumbnails_);
-		EvaluateQuery<StringListJoinable> () (query, "/package/screenshots/screenshot/normalize-space(string(@url))", Ui_.Screenshots_);
+		EvaluateQuery<StringListJoinable> () (query, "/package/images/thumbnail/normalize-space(string(@url))", Ui_.Thumbnails_);
+		EvaluateQuery<StringListJoinable> () (query, "/package/images/screenshot/normalize-space(string(@url))", Ui_.Screenshots_);
 
 		QList<QStringList> rows;
 		EvaluateQuery<StringListList> () (query, "/package/depends/depend/string(@thisVersion)", rows);
@@ -446,32 +446,36 @@ void MainWindow::on_ActionSave__triggered ()
 		versions.appendChild (verNode);
 	}
 
+	QString iconUrl = Ui_.Icon_->text ();
 	QString rawThumbs = Ui_.Thumbnails_->toPlainText ();
-	if (!rawThumbs.isEmpty ())
+	QString rawScreens = Ui_.Screenshots_->toPlainText ();
+	if (!iconUrl.isEmpty () ||
+			!rawThumbs.isEmpty () ||
+			!rawScreens.isEmpty ())
 	{
-		QDomElement thumbnails = doc.createElement ("thumbnails");
+		QDomElement images = doc.createElement ("images");
+		
+		QDomElement icon = doc.createElement ("icon");
+		icon.setAttribute ("url", iconUrl);
+		images.appendChild (icon);
+		
 		QStringList splitted = rawThumbs.split ("\n", QString::SkipEmptyParts);
 		Q_FOREACH (const QString& thumbUrl, splitted)
 		{
 			QDomElement thumb = doc.createElement ("thumbnail");
 			thumb.setAttribute ("url", thumbUrl);
-			thumbnails.appendChild (thumb);
+			images.appendChild (thumb);
 		}
-		package.appendChild (thumbnails);
-	}
 
-	QString rawScreens = Ui_.Screenshots_->toPlainText ();
-	if (!rawScreens.isEmpty ())
-	{
-		QDomElement screens = doc.createElement ("screenshots");
-		QStringList splitted = rawScreens.split ('\n', QString::SkipEmptyParts);
+		splitted = rawScreens.split ('\n', QString::SkipEmptyParts);
 		Q_FOREACH (const QString& screenUrl, splitted)
 		{
 			QDomElement screen = doc.createElement ("screenshot");
 			screen.setAttribute ("url", screenUrl);
-			screens.appendChild (screen);
+			images.appendChild (screen);
 		}
-		package.appendChild (screens);
+
+		package.appendChild (images);
 	}
 
 	QString longDescr = Ui_.LongDescription_->toPlainText ();
@@ -508,7 +512,12 @@ void MainWindow::on_ActionSave__triggered ()
 	}
 	package.appendChild (depends);
 
-	outFile.write (doc.toByteArray ());
+	// Ugly hack, on my system QDomDocument doesn't write header for
+	// some reason.
+	QByteArray result = doc.toByteArray ();
+	if (!result.startsWith ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
+		result.prepend ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	outFile.write (result);
 }
 
 void MainWindow::on_AddVer__released ()
