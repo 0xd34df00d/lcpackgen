@@ -79,6 +79,11 @@
             </item>
             <item>
              <property name="text">
+              <string>theme</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
               <string>data</string>
              </property>
             </item>
