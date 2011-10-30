@@ -410,10 +410,15 @@ void MainWindow::on_ActionSave__triggered ()
 	{
 		QString prevDir = Settings_.value ("LastLoadDir",
 				QDir::homePath ()).toString ();
+
+		QString suggestedName = Ui_.Name_->text ().simplified ().toLower ();
+		suggestedName.remove (' ');
+
 		CurrentFileName_ = QFileDialog::getSaveFileName (this,
 				tr ("Select file name"),
-				prevDir,
+				prevDir + '/' + suggestedName,
 				tr ("XML files (*.xml);;All files (*.*)"));
+
 		if (CurrentFileName_.isEmpty ())
 			return;
 	}
