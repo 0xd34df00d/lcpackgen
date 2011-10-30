@@ -406,17 +406,18 @@ void MainWindow::on_ActionSave__triggered ()
 					QMessageBox::Yes | QMessageBox::No) == QMessageBox::No)
 		return;
 
+	QString normalizedName = Ui_.Name_->text ().simplified ().toLower ();
+	normalizedName.remove (' ');
+	normalizedName.remove ('\t');
+
 	if (CurrentFileName_.isEmpty ())
 	{
 		QString prevDir = Settings_.value ("LastLoadDir",
 				QDir::homePath ()).toString ();
 
-		QString suggestedName = Ui_.Name_->text ().simplified ().toLower ();
-		suggestedName.remove (' ');
-
 		CurrentFileName_ = QFileDialog::getSaveFileName (this,
 				tr ("Select file name"),
-				prevDir + '/' + suggestedName,
+				prevDir + '/' + normalizedName + ".xml",
 				tr ("XML files (*.xml);;All files (*.*)"));
 
 		if (CurrentFileName_.isEmpty ())
@@ -428,9 +429,9 @@ void MainWindow::on_ActionSave__triggered ()
 	{
 		QMessageBox::warning (this,
 				tr ("Critical error"),
-				tr ("Could not open file %1 for writing.")
+				tr ("Could not open file %1 for writing. File is not saved.")
 					.arg (CurrentFileName_));
-		CurrentFileName_ = QString ();
+		return;
 	}
 
 	QDomDocument doc;
@@ -458,14 +459,25 @@ void MainWindow::on_ActionSave__triggered ()
 		tags.appendChild (tagNode);
 	}
 
+	QDir dir = QFileInfo (CurrentFileName_).dir ();
+	dir.cd ("arch");
+
 	QDomElement versions = doc.createElement ("versions");
 	package.appendChild (versions);
 	for (int i = 0, size = VersModel_->rowCount ();
 			i < size; ++i)
 	{
+		const QString& version = VersModel_->item (i)->text ();
+
 		QDomElement verNode = doc.createElement ("version");
-		QString version = VersModel_->item (i)->text ();
 		verNode.appendChild (doc.createTextNode (version));
+
+		const QString& archName = QString ("%1-%2.tar.gz")
+				.arg (normalizedName)
+				.arg (version);
+		if (dir.exists (archName))
+			verNode.setAttribute ("size", QFileInfo (dir.filePath (archName)).size ());
+
 		versions.appendChild (verNode);
 	}
 
