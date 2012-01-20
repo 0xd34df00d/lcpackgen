@@ -477,11 +477,25 @@ void MainWindow::on_ActionSave__triggered ()
 		QDomElement verNode = doc.createElement ("version");
 		verNode.appendChild (doc.createTextNode (version));
 
-		const QString& archName = QString ("%1-%2.tar.gz")
-				.arg (normalizedName)
-				.arg (version);
-		if (dir.exists (archName))
+		// C++11 range-based for
+		QStringList knownArchivers;
+		knownArchivers << "xz"
+				<< "lzma"
+				<< "bz2"
+				<< "gz";
+		Q_FOREACH (const QString& str, knownArchivers)
+		{
+			const QString& archName = QString ("%1-%2.tar.%3")
+					.arg (normalizedName)
+					.arg (version)
+					.arg (str);
+			if (!dir.exists (archName))
+				continue;
+
 			verNode.setAttribute ("size", QFileInfo (dir.filePath (archName)).size ());
+			verNode.setAttribute ("archiver", str);
+			break;
+		}
 
 		versions.appendChild (verNode);
 	}
