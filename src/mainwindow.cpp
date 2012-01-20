@@ -411,7 +411,7 @@ void MainWindow::on_ActionSave__triggered ()
 					QMessageBox::Yes | QMessageBox::No) == QMessageBox::No)
 		return;
 
-	QString normalizedName = Ui_.Name_->text ().simplified ().toLower ();
+	QString normalizedName = Ui_.Name_->text ().simplified ();
 	normalizedName.remove (' ');
 	normalizedName.remove ('\t');
 
