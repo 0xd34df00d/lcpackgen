@@ -44,6 +44,7 @@ MainWindow::MainWindow ()
 	Ui_.ActionNew_->setIcon (QIcon::fromTheme ("document-new"));
 	Ui_.ActionLoad_->setIcon (QIcon::fromTheme ("document-open"));
 	Ui_.ActionSave_->setIcon (QIcon::fromTheme ("document-save"));
+	Ui_.ActionSaveAs_->setIcon (QIcon::fromTheme ("document-save-as"));
 
 	statusBar ()->addPermanentWidget (ValidLabel_);
 
@@ -572,6 +573,12 @@ void MainWindow::on_ActionSave__triggered ()
 	if (!result.startsWith ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
 		result.prepend ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 	outFile.write (result);
+}
+
+void MainWindow::on_ActionSaveAs__triggered ()
+{
+	CurrentFileName_.clear ();
+	on_ActionSave__triggered ();
 }
 
 void MainWindow::on_AddVer__released ()

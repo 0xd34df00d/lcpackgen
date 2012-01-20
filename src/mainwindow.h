@@ -54,6 +54,7 @@ private slots:
 	void on_ActionNew__triggered ();
 	void on_ActionLoad__triggered ();
 	void on_ActionSave__triggered ();
+	void on_ActionSaveAs__triggered ();
 
 	void on_AddVer__released ();
 	void on_ModifyVer__released ();
