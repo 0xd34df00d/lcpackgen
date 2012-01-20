@@ -44,6 +44,8 @@ class MainWindow : public QMainWindow
 	QString CurrentFileName_;
 public:
 	MainWindow ();
+
+	void Open (const QString&);
 private:
 	void Clear ();
 private slots:

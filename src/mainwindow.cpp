@@ -90,80 +90,6 @@ MainWindow::MainWindow ()
 	checkValid ();
 }
 
-void MainWindow::Clear ()
-{
-	EnableCheckValid_ = false;
-
-	Ui_.Name_->clear ();
-	Ui_.Description_->clear ();
-	Ui_.LongDescription_->clear ();
-	Ui_.MaintName_->clear ();
-	Ui_.MaintEmail_->clear ();
-	Ui_.Thumbnails_->clear ();
-	Ui_.Screenshots_->clear ();
-	VersModel_->clear ();
-	DepsModel_->clear ();
-
-	EnableCheckValid_ = true;
-
-	checkValid ();
-}
-
-bool MainWindow::checkValid ()
-{
-	if (!EnableCheckValid_)
-		return true;
-
-	QStringList reasons;
-
-	if (Ui_.Name_->text ().isEmpty ())
-		reasons << tr ("<em>Name</em> is empty.");
-
-	if (Ui_.Description_->text ().isEmpty ())
-		reasons << tr ("<em>Description</em> is empty.");
-
-	if (Ui_.Tags_->text ().isEmpty ())
-		reasons << tr ("<em>Tags</em> are empty.");
-
-	if (Ui_.MaintName_->text ().isEmpty ())
-		reasons << tr ("<em>Maintainer name</em> is empty.");
-
-	if (Ui_.MaintEmail_->text ().isEmpty ())
-		reasons << tr ("<em>Maintainer email</em> is empty.");
-
-	if (Ui_.Type_->currentText () == "translation" &&
-			QLocale (Ui_.Language_->currentText ()).language () == QLocale::C)
-		reasons << tr ("<em>Language</em> has unkown language code %1.")
-				.arg (Ui_.Language_->currentText ());
-
-	if (!VersModel_->rowCount ())
-		reasons << tr ("No versions are defined.");
-
-	if (reasons.size ())
-	{
-		ValidLabel_->setText (tr ("Invalid"));
-		QString toolTip = QString ("<ul><li>%1</li></ul>")
-				.arg (reasons.join ("</li><li>"));
-		ValidLabel_->setToolTip (toolTip);
-		ValidLabel_->setStyleSheet ("color: red;");
-		return false;
-	}
-	else
-	{
-		ValidLabel_->setText (tr ("Valid"));
-		ValidLabel_->setToolTip (QString ());
-		ValidLabel_->setStyleSheet ("color: green;");
-		return true;
-	}
-}
-
-void MainWindow::on_ActionNew__triggered ()
-{
-	Clear ();
-
-	CurrentFileName_ = QString ();
-}
-
 enum Type
 {
 	SetTextable,
@@ -279,17 +205,8 @@ struct EvaluateQuery<StringListList>
 	}
 };
 
-void MainWindow::on_ActionLoad__triggered ()
+void MainWindow::Open (const QString& fileName)
 {
-	QString prevDir = Settings_.value ("LastLoadDir",
-			QDir::homePath ()).toString ();
-	QString fileName = QFileDialog::getOpenFileName (this,
-			tr ("Select file"),
-			prevDir,
-			tr ("XML files (*.xml);;All files (*.*)"));
-	if (fileName.isEmpty ())
-		return;
-
 	Clear ();
 
 	CurrentFileName_ = fileName;
@@ -395,6 +312,94 @@ void MainWindow::on_ActionLoad__triggered ()
 	EnableCheckValid_ = true;
 
 	checkValid ();
+}
+
+void MainWindow::Clear ()
+{
+	EnableCheckValid_ = false;
+
+	Ui_.Name_->clear ();
+	Ui_.Description_->clear ();
+	Ui_.LongDescription_->clear ();
+	Ui_.MaintName_->clear ();
+	Ui_.MaintEmail_->clear ();
+	Ui_.Thumbnails_->clear ();
+	Ui_.Screenshots_->clear ();
+	VersModel_->clear ();
+	DepsModel_->clear ();
+
+	EnableCheckValid_ = true;
+
+	checkValid ();
+}
+
+bool MainWindow::checkValid ()
+{
+	if (!EnableCheckValid_)
+		return true;
+
+	QStringList reasons;
+
+	if (Ui_.Name_->text ().isEmpty ())
+		reasons << tr ("<em>Name</em> is empty.");
+
+	if (Ui_.Description_->text ().isEmpty ())
+		reasons << tr ("<em>Description</em> is empty.");
+
+	if (Ui_.Tags_->text ().isEmpty ())
+		reasons << tr ("<em>Tags</em> are empty.");
+
+	if (Ui_.MaintName_->text ().isEmpty ())
+		reasons << tr ("<em>Maintainer name</em> is empty.");
+
+	if (Ui_.MaintEmail_->text ().isEmpty ())
+		reasons << tr ("<em>Maintainer email</em> is empty.");
+
+	if (Ui_.Type_->currentText () == "translation" &&
+			QLocale (Ui_.Language_->currentText ()).language () == QLocale::C)
+		reasons << tr ("<em>Language</em> has unkown language code %1.")
+				.arg (Ui_.Language_->currentText ());
+
+	if (!VersModel_->rowCount ())
+		reasons << tr ("No versions are defined.");
+
+	if (reasons.size ())
+	{
+		ValidLabel_->setText (tr ("Invalid"));
+		QString toolTip = QString ("<ul><li>%1</li></ul>")
+				.arg (reasons.join ("</li><li>"));
+		ValidLabel_->setToolTip (toolTip);
+		ValidLabel_->setStyleSheet ("color: red;");
+		return false;
+	}
+	else
+	{
+		ValidLabel_->setText (tr ("Valid"));
+		ValidLabel_->setToolTip (QString ());
+		ValidLabel_->setStyleSheet ("color: green;");
+		return true;
+	}
+}
+
+void MainWindow::on_ActionNew__triggered ()
+{
+	Clear ();
+
+	CurrentFileName_ = QString ();
+}
+
+void MainWindow::on_ActionLoad__triggered ()
+{
+	QString prevDir = Settings_.value ("LastLoadDir",
+			QDir::homePath ()).toString ();
+	QString fileName = QFileDialog::getOpenFileName (this,
+			tr ("Select file"),
+			prevDir,
+			tr ("XML files (*.xml);;All files (*.*)"));
+	if (fileName.isEmpty ())
+		return;
+
+	Open (fileName);
 }
 
 void MainWindow::on_ActionSave__triggered ()

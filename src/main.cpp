@@ -17,12 +17,29 @@
  **********************************************************************/
 
 #include <QApplication>
+#include <QFileInfo>
+#include <QDir>
 #include "mainwindow.h"
 
 int main (int argc, char **argv)
 {
 	QApplication app (argc, argv);
+
 	MainWindow mw;
 	mw.show ();
+
+	QStringList args = app.arguments ();
+	if (args.size () > 1)
+	{
+		QString filename = args.at (1);
+		if (QFileInfo (filename).isAbsolute ())
+			mw.Open (filename);
+		else
+		{
+			QDir dir (QDir::currentPath ());
+			mw.Open (dir.absoluteFilePath (filename));
+		}
+	}
+
 	return app.exec ();
 }
