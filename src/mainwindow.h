@@ -49,6 +49,7 @@ public:
 private:
 	void Clear ();
 	void UpdateWindowTitle ();
+	QString GetNormalizedName () const;
 private slots:
 	bool checkValid ();
 

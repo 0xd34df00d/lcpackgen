@@ -344,6 +344,43 @@ void MainWindow::UpdateWindowTitle ()
 	setWindowTitle (QString ("%1[*] - LCPackGen").arg (filename));
 }
 
+QString MainWindow::GetNormalizedName () const
+{
+	QString normalizedName = Ui_.Name_->text ().simplified ();
+	normalizedName.remove (' ');
+	normalizedName.remove ('\t');
+	return normalizedName;
+}
+
+namespace
+{
+	struct VersionArchive
+	{
+		QString Archiver_;
+		QString Path_;
+	};
+
+	VersionArchive GetArchiveInfo (const QDir& dir, const QString& normalizedName, const QString& version)
+	{
+		QStringList knownArchivers;
+		knownArchivers << "xz"
+				<< "lzma"
+				<< "bz2"
+				<< "gz";
+		Q_FOREACH (const QString& str, knownArchivers)
+		{
+			const QString& archName = QString ("%1-%2.tar.%3")
+					.arg (normalizedName)
+					.arg (version)
+					.arg (str);
+			if (dir.exists (archName))
+				return { str, dir.filePath (archName) };
+		}
+
+		return VersionArchive ();
+	}
+}
+
 bool MainWindow::checkValid ()
 {
 	setWindowModified (true);
@@ -374,6 +411,24 @@ bool MainWindow::checkValid ()
 
 	if (!VersModel_->rowCount ())
 		reasons << tr ("No versions are defined.");
+
+	if (!CurrentFileName_.isEmpty ())
+	{
+		QDir archDir = QFileInfo (CurrentFileName_).dir ();
+		if (!archDir.cd ("arch"))
+			reasons << tr ("No <em>arch</em> subdirectory in package description directory.");
+		else
+		{
+			const QString& normalized = GetNormalizedName ();
+
+			for (int i = 0; i < VersModel_->rowCount (); ++i)
+			{
+				const QString& version = VersModel_->item (i)->text ();
+				if (GetArchiveInfo (archDir, normalized, version).Archiver_.isEmpty ())
+					reasons << tr ("No archiver for version <em>%1</em>").arg (version);
+			}
+		}
+	}
 
 	if (reasons.size ())
 	{
@@ -428,9 +483,7 @@ void MainWindow::on_ActionSave__triggered ()
 					QMessageBox::Yes | QMessageBox::No) == QMessageBox::No)
 		return;
 
-	QString normalizedName = Ui_.Name_->text ().simplified ();
-	normalizedName.remove (' ');
-	normalizedName.remove ('\t');
+	const QString& normalizedName = GetNormalizedName ();
 
 	if (CurrentFileName_.isEmpty ())
 	{
@@ -494,25 +547,9 @@ void MainWindow::on_ActionSave__triggered ()
 		QDomElement verNode = doc.createElement ("version");
 		verNode.appendChild (doc.createTextNode (version));
 
-		// C++11 range-based for
-		QStringList knownArchivers;
-		knownArchivers << "xz"
-				<< "lzma"
-				<< "bz2"
-				<< "gz";
-		Q_FOREACH (const QString& str, knownArchivers)
-		{
-			const QString& archName = QString ("%1-%2.tar.%3")
-					.arg (normalizedName)
-					.arg (version)
-					.arg (str);
-			if (!dir.exists (archName))
-				continue;
-
-			verNode.setAttribute ("size", QFileInfo (dir.filePath (archName)).size ());
-			verNode.setAttribute ("archiver", str);
-			break;
-		}
+		const VersionArchive& archive = GetArchiveInfo (dir, normalizedName, version);
+		verNode.setAttribute ("size", QFileInfo (archive.Path_).size ());
+		verNode.setAttribute ("archiver", archive.Archiver_);
 
 		versions.appendChild (verNode);
 	}
