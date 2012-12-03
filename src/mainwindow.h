@@ -48,6 +48,7 @@ public:
 	void Open (const QString&);
 private:
 	void Clear ();
+	void UpdateWindowTitle ();
 private slots:
 	bool checkValid ();
 

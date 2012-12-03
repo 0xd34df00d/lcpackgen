@@ -38,6 +38,7 @@ MainWindow::MainWindow ()
 , EnableCheckValid_ (false)
 {
 	Ui_.setupUi (this);
+	UpdateWindowTitle ();
 	Ui_.VersTree_->setModel (VersModel_);
 	Ui_.DepsTree_->setModel (DepsModel_);
 
@@ -334,8 +335,18 @@ void MainWindow::Clear ()
 	checkValid ();
 }
 
+void MainWindow::UpdateWindowTitle ()
+{
+	QString filename = QFileInfo (CurrentFileName_).fileName ();
+	if (filename.isEmpty ())
+		filename = tr ("New file");
+
+	setWindowTitle (QString ("%1[*] - LCPackGen").arg (filename));
+}
+
 bool MainWindow::checkValid ()
 {
+	setWindowModified (true);
 	if (!EnableCheckValid_)
 		return true;
 
@@ -386,7 +397,10 @@ void MainWindow::on_ActionNew__triggered ()
 {
 	Clear ();
 
+	setWindowModified (false);
 	CurrentFileName_ = QString ();
+
+	UpdateWindowTitle ();
 }
 
 void MainWindow::on_ActionLoad__triggered ()
@@ -401,6 +415,8 @@ void MainWindow::on_ActionLoad__triggered ()
 		return;
 
 	Open (fileName);
+	setWindowModified (false);
+	UpdateWindowTitle ();
 }
 
 void MainWindow::on_ActionSave__triggered ()
@@ -573,12 +589,16 @@ void MainWindow::on_ActionSave__triggered ()
 	if (!result.startsWith ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
 		result.prepend ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 	outFile.write (result);
+
+	setWindowModified (false);
+	UpdateWindowTitle ();
 }
 
 void MainWindow::on_ActionSaveAs__triggered ()
 {
 	CurrentFileName_.clear ();
 	on_ActionSave__triggered ();
+	UpdateWindowTitle ();
 }
 
 void MainWindow::on_AddVer__released ()
